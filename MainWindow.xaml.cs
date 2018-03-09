@@ -33,7 +33,7 @@ namespace FoxFire
             MediaHandler fetcher = new MediaHandler(new string[] { Environment.GetFolderPath(Environment.SpecialFolder.MyMusic) });
             fetcher.Dictionary.KeyAdded += Dictionary_NewKey;
             Task.Run(async () => {
-                var dict = await fetcher.CreateDictionary();
+                await fetcher.CreateDictionary();
             });
         }
 

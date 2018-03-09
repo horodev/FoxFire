@@ -84,7 +84,7 @@ namespace FoxFire
 
         public async Task<MultiValueDictionary<Album, string>> CreateDictionary() 
         {
-            var List = await LoadFilesAsync(Locations[0]);
+            var List = LoadFiles(Locations[0]);
             foreach(var file in List)
             {
                 TagLib.File tFile = null;
@@ -110,22 +110,23 @@ namespace FoxFire
             }
             return Dictionary;
         }
-        [Obsolete("LoadFiles is deprecated, as we're switching to fully Async Code. Use LoadFilesAsync instead.")]
         private List<string> LoadFiles(string path)
         {
             var list = new List<string>();
-            if (Directory.GetDirectories(path).Length > 0)
+            foreach (var dir in Directory.GetDirectories(path, "*"))
             {
-                foreach (var dir in Directory.GetDirectories(path))
-                    list.AddRange(LoadFiles(dir));
+                foreach (var file in Directory.GetFiles(path))
+                {
+                    if (IsValidTrack(file))
+                        list.Add(file);
+                }
             }
-            list.AddRange(Directory.GetFiles(path));
             return list;
         }
-        private async Task<List<string>> LoadFilesAsync(string path) //TODO: Ändere zu Asynchroner Iterativer Aufruf
+        private async Task<List<string>> LoadFilesAsync(string path) 
         {
             var list = new List<string>();
-            foreach(var file in Directory.GetFiles(path))
+            foreach (var file in Directory.GetFiles(path))
             {
                 if (IsValidTrack(file))
                     list.Add(file);
@@ -133,19 +134,13 @@ namespace FoxFire
             foreach (var dir in Directory.GetDirectories(path))
             {
                 var dummy = await LoadFilesAsync(dir);
-                if(dummy != null)
+                if (dummy != null)
                 {
                     list.AddRange(dummy);
                 }
             }
             return list.Count == 0 ? null : list;
         }
-
-        private void AddToList(List<string> list, string file)
-        {
-
-        }
-
         private bool IsValidTrack(string file)
         {
             return _validFileExtensions.Contains(Path.GetExtension(file));
