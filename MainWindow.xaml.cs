@@ -20,6 +20,7 @@ namespace FoxFire
     public partial class MainWindow : Window
     {
         public ApplicationPage CurrentPage { get; set; }
+        public MediaHandler Media { get; set; }
 
         public MainWindow()
         {
@@ -29,27 +30,35 @@ namespace FoxFire
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            Debug.WriteLine("Hi!");
-            MediaHandler fetcher = new MediaHandler(new string[] { Environment.GetFolderPath(Environment.SpecialFolder.MyMusic) });
-            fetcher.Dictionary.KeyAdded += Dictionary_NewKey;
+            Media = new MediaHandler(new string[] { Environment.GetFolderPath(Environment.SpecialFolder.MyMusic) });
             Task.Run(async () => {
-                await fetcher.CreateDictionary();
+                var needToAdd = await Media.LoadDatabase();
+                if(needToAdd)
+                {
+                    var list = await Media.DatabaseHelper.QueryAlbums();
+                    foreach(var a in list)
+                    {
+                        DEBUG_AddLabel(a.Name);
+                    }
+                }
             });
+            Media.DatabaseHelper.ObjectAdded += DatabaseHelper_ObjectAdded;
         }
 
-        private void Dictionary_NewKey(object sender, KeyAddedEventArgs<Album> e)
+        private void DEBUG_AddLabel(string text)
         {
             Dispatcher?.Invoke(() =>
             {
-                // System.Windows.Controls.Image i = new System.Windows.Controls.Image();
-                // i.Source = GetCover(e.Path);
-                // Stack.Children.Add(i);
                 Label l = new Label();
-                l.Content = e.Key.Name;
+                l.Content = text;
                 Stack.Children.Add(l);
             });
         }
 
+        private void DatabaseHelper_ObjectAdded(object sender, ObjectAddedEventArgs<Album> e)
+        {
+            DEBUG_AddLabel(e.Object.Name);
+        }
         private BitmapImage GetCover(string path)
         {
             var f = TagLib.File.Create(path);

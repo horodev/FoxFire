@@ -8,46 +8,8 @@ using horodev;
 
 namespace FoxFire
 {
-    public class FileCreationEventArgs
-    {
-        public FileCreationEventArgs(string album, string filepath)
-        {
-            Album = album;
-            Filepath = filepath;
-        }
-        public string Album { get; private set; }
-        public string Filepath { get; private set; }
-    }
-
     public class MediaHandler
     {
-        public delegate void FileCreationEventHandler(object sender, FileCreationEventArgs e);
-        public event FileCreationEventHandler FileCreation;
-        protected void OnFileCreation(string album, string path)
-        {
-            FileCreation?.Invoke(this, new FileCreationEventArgs(album, path));
-        }
-        public string[] Locations { get; private set; }
-        public MultiValueDictionary<Album, string> Dictionary
-        {
-            get
-            {
-                return _dictionary;
-            }
-
-            private set
-            {
-                _dictionary = value;
-            }
-        }
-        private MultiValueDictionary<Album, string> _dictionary;
-        private DatabaseHelper _databaseHelper;
-        public DatabaseHelper DatabaseHelper
-        {
-            get { return _databaseHelper; }
-            set { _databaseHelper = value; }
-        }
-
         private string[] _validFileExtensions = new string[]
         {
             ".mp3",
@@ -56,36 +18,38 @@ namespace FoxFire
             ".wav",
             ".flac"
         };
+        public string[] Locations { get; private set; }
+
+        public string DatabasePath { get; set; }
+
+        private DatabaseHelper _databaseHelper;
+        public DatabaseHelper DatabaseHelper
+        {
+            get { return _databaseHelper; }
+            set { _databaseHelper = value; }
+        }
 
         public MediaHandler(string[] locations)
         {
-            var dbPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "test.db");
-            DatabaseHelper = new DatabaseHelper(dbPath);
+            DatabasePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "horodev//foxfire//media.db");
+            DatabaseHelper = new DatabaseHelper(DatabasePath);
             Locations = locations;
-            Dictionary = new MultiValueDictionary<Album, string>();
-
-            Dictionary.KeyAdded += Dictionary_KeyAdded;
-            Dictionary.ItemAdded += Dictionary_ItemAdded;
-            FileCreation += FileFetcher_FileCreation;
         }
 
-        private void Dictionary_KeyAdded(object sender, KeyAddedEventArgs<Album> e)
+        public async Task<bool> LoadDatabase()
         {
-            DatabaseHelper.AddAlbum(e.Key);
+            if (!File.Exists(DatabasePath))
+            {
+                DatabaseHelper.SetupDatabase();
+                await CreateDatabase();
+                return false;
+            }
+            return true;
         }
-        private void Dictionary_ItemAdded(object sender, ItemAddedEventArgs<Album, string> e)
-        {
-            //Task.Run(async() => await DatabaseHelper.AddTrack(new Track(e.Value)));
-        }
-        private void FileFetcher_FileCreation(object sender, FileCreationEventArgs e)
-        {
-            Dictionary.Add(new Album() { Name = e.Album }, e.Filepath);
-        }
-
-        public async Task<MultiValueDictionary<Album, string>> CreateDictionary() 
+        private async Task CreateDatabase()
         {
             var List = LoadFiles(Locations[0]);
-            foreach(var file in List)
+            foreach (var file in List)
             {
                 TagLib.File tFile = null;
                 try
@@ -93,10 +57,11 @@ namespace FoxFire
                     tFile = TagLib.File.Create(file);
                     if (!string.IsNullOrEmpty(tFile.Tag.Album))
                     {
-                        await Task.Run(() =>
+                        var list = await DatabaseHelper.QueryAlbums(tFile.Tag.Album);
+                        if(list.Count == 0)
                         {
-                            OnFileCreation(tFile.Tag.Album, file);
-                        });
+                            DatabaseHelper.AddAlbum(new Album() { Name = tFile.Tag.Album });
+                        }
                     }
                 }
                 catch (TagLib.UnsupportedFormatException)
@@ -108,42 +73,14 @@ namespace FoxFire
                     tFile?.Dispose();
                 }
             }
-            return Dictionary;
         }
         private List<string> LoadFiles(string path)
         {
-            var list = new List<string>();
-            foreach (var dir in Directory.GetDirectories(path, "*"))
-            {
-                foreach (var file in Directory.GetFiles(path))
-                {
-                    if (IsValidTrack(file))
-                        list.Add(file);
-                }
-            }
-            return list;
-        }
-        private async Task<List<string>> LoadFilesAsync(string path) 
-        {
-            var list = new List<string>();
-            foreach (var file in Directory.GetFiles(path))
-            {
-                if (IsValidTrack(file))
-                    list.Add(file);
-            }
-            foreach (var dir in Directory.GetDirectories(path))
-            {
-                var dummy = await LoadFilesAsync(dir);
-                if (dummy != null)
-                {
-                    list.AddRange(dummy);
-                }
-            }
-            return list.Count == 0 ? null : list;
+            return Directory.EnumerateFiles(path, ".", SearchOption.AllDirectories).Where(s => IsValidTrack(s)).ToList();
         }
         private bool IsValidTrack(string file)
         {
             return _validFileExtensions.Contains(Path.GetExtension(file));
-        } 
+        }
     }
 }
