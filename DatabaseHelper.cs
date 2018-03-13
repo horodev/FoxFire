@@ -1,5 +1,4 @@
-﻿using horodev;
-using SQLite;
+﻿using SQLite;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -37,6 +36,8 @@ namespace FoxFire
 
         public void SetupDatabase()
         {
+            if (!Directory.Exists(Path))
+                Directory.CreateDirectory(Path.Substring(0, Path.LastIndexOf('/')));
             var conn = new SQLiteConnection(Path);
             conn.CreateTable<Album>();
             conn.CreateTable<Track>();
@@ -67,7 +68,7 @@ namespace FoxFire
             var conn = new SQLiteAsyncConnection(Path);
             return await conn.QueryAsync<Album>("select * from Album where name = ?", albumName);
         }
-        public void AddContent(MultiValueDictionary<Album, string> dict)
+        /*public void AddContent(MultiValueDictionary<Album, string> dict)
         {
             foreach(var kvp in dict)
             {
@@ -80,7 +81,7 @@ namespace FoxFire
                     AddTrack(t);
                 }
             }
-        }
+        }*/
         public async Task<List<Track>> QueryTracksFromAlbum(int id)
         {
             var conn = new SQLiteAsyncConnection(Path);
